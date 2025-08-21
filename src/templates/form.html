@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="formTitle">Formulario</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Roboto:wght@300;400;500&family=Open+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style id="dynamicStyles">
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: #2d3748;
+            background-color: #f7fafc;
+            min-height: 100vh;
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        
+        .overlay {
+            background: rgba(247, 250, 252, 0.9);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        
+        .form-header {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .form-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-description {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+        
+        .question-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .question-text {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: #1a202c;
+            margin-bottom: 1.5rem;
+        }
+        
+        .question-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .option {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .option:hover {
+            border-color: #cbd5e0;
+            background-color: #f7fafc;
+        }
+        
+        .option.selected {
+            border-color: #4f46e5;
+            background-color: #f0f4ff;
+        }
+        
+        .option input {
+            margin-right: 0.75rem;
+            transform: scale(1.2);
+        }
+        
+        .option-text {
+            flex: 1;
+        }
+        
+        .option-image {
+            max-width: 100px;
+            border-radius: 4px;
+            margin-left: 1rem;
+        }
+        
+        .text-input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .text-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+        
+        .submit-btn {
+            background: #4f46e5;
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-top: 2rem;
+        }
+        
+        .submit-btn:hover {
+            background: #4338ca;
+        }
+        
+        .submit-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        
+        .result-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            margin-top: 2rem;
+            text-align: center;
+            display: none;
+        }
+        
+        .result-score {
+            font-size: 3rem;
+            font-weight: 600;
+            color: #4f46e5;
+            margin-bottom: 1rem;
+        }
+        
+        .result-message {
+            font-size: 1.5rem;
+            color: #2d3748;
+            margin-bottom: 2rem;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <div class="container">
+            <div class="loading" id="formLoading">
+                <div class="spinner"></div>
+                <p>Cargando formulario...</p>
+            </div>
+            
+            <div id="formContent" style="display: none;">
+                <div class="form-header">
+                    <h1 class="form-title" id="titleElement">Título del Formulario</h1>
+                    <p class="form-description" id="descriptionElement">Descripción del formulario</p>
+                </div>
+                
+                <form id="responseForm">
+                    <div id="questionsContainer">
+                        <!-- Las preguntas se cargarán aquí -->
+                    </div>
+                    
+                    <button type="submit" class="submit-btn" id="submitBtn">
+                        <span class="spinner" id="submitSpinner" style="display: none; margin-right: 0.5rem;"></span>
+                        Enviar Respuestas
+                    </button>
+                </form>
+            </div>
+            
+            <div class="result-card" id="resultCard">
+                <div class="result-score" id="resultScore">0</div>
+                <div class="result-message" id="resultMessage">Mensaje de resultado</div>
+                <button onclick="resetForm()" class="submit-btn" style="max-width: 200px; margin: 0 auto;">
+                    Responder de Nuevo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const formSlug = window.location.pathname.split('/').pop();
+        let formData = null;
+        let questions = [];
+        let answers = {};
+
+        async function loadForm() {
+            const loading = document.getElementById('formLoading');
+            const content = document.getElementById('formContent');
+            
+            try {
+                loading.style.display = 'block';
+                
+                // Cargar formulario
+                const formResponse = await fetch(`/api/forms/${formSlug}`);
+                if (!formResponse.ok) {
+                    throw new Error('Formulario no encontrado');
+                }
+                formData = await formResponse.json();
+                
+                // Cargar preguntas
+                const questionsResponse = await fetch(`/api/questions/by_form/${formData.id}`);
+                questions = await questionsResponse.json();
+                
+                setupFormStyle();
+                renderForm();
+                
+                loading.style.display = 'none';
+                content.style.display = 'block';
+                
+            } catch (error) {
+                loading.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function setupFormStyle() {
+            // Aplicar tipografía personalizada
+            if (formData.font_family) {
+                document.body.style.fontFamily = `${formData.font_family}, -apple-system, BlinkMacSystemFont, sans-serif`;
+            }
+            
+            // Aplicar imagen de fondo
+            if (formData.background_image) {
+                document.body.style.backgroundImage = `url(${formData.background_image})`;
+            }
+            
+            // Actualizar título de la página
+            document.title = formData.title;
+        }
+        
+        function renderForm() {
+            document.getElementById('titleElement').textContent = formData.title;
+            document.getElementById('descriptionElement').textContent = formData.description || '';
+            
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = questions.map(question => renderQuestion(question)).join('');
+            
+            // Agregar event listeners
+            setupEventListeners();
+        }
+        
+        function renderQuestion(question) {
+            let optionsHtml = '';
+            
+            if (question.type === 'MULTIPLE_CHOICE') {
+                optionsHtml = question.options.map(option => `
+                    <div class="option" onclick="selectOption('${question.id}', '${option.id}', 'radio')">
+                        <input type="radio" name="q_${question.id}" value="${option.id}">
+                        <div class="option-text">${option.text}</div>
+                        ${option.image ? `<img src="${option.image}" alt="Option image" class="option-image">` : ''}
+                    </div>
+                `).join('');
+            } else if (question.type === 'CHECKBOXES') {
+                optionsHtml = question.options.map(option => `
+                    <div class="option" onclick="selectOption('${question.id}', '${option.id}', 'checkbox')">
+                        <input type="checkbox" name="q_${question.id}" value="${option.id}">
+                        <div class="option-text">${option.text}</div>
+                        ${option.image ? `<img src="${option.image}" alt="Option image" class="option-image">` : ''}
+                    </div>
+                `).join('');
+            } else if (question.type === 'TEXT') {
+                optionsHtml = `
+                    <textarea 
+                        class="text-input" 
+                        name="q_${question.id}" 
+                        placeholder="Escribe tu respuesta aquí..."
+                    ></textarea>
+                `;
+            }
+            
+            return `
+                <div class="question-card" data-question-id="${question.id}">
+                    ${question.image ? `<img src="${question.image}" alt="Question image" class="question-image">` : ''}
+                    <div class="question-text">${question.text}</div>
+                    ${optionsHtml}
+                </div>
+            `;
+        }
+        
+        function selectOption(questionId, optionId, type) {
+            const option = event.currentTarget;
+            const input = option.querySelector('input');
+            
+            if (type === 'radio') {
+                // Deseleccionar todas las otras opciones
+                const allOptions = document.querySelectorAll(`[data-question-id="${questionId}"] .option`);
+                allOptions.forEach(opt => opt.classList.remove('selected'));
+                
+                option.classList.add('selected');
+                input.checked = true;
+                answers[questionId] = optionId;
+            } else if (type === 'checkbox') {
+                option.classList.toggle('selected');
+                input.checked = !input.checked;
+                
+                if (!answers[questionId]) answers[questionId] = [];
+                
+                if (input.checked) {
+                    if (!answers[questionId].includes(optionId)) {
+                        answers[questionId].push(optionId);
+                    }
+                } else {
+                    answers[questionId] = answers[questionId].filter(id => id !== optionId);
+                }
+            }
+        }
+        
+        function setupEventListeners() {
+            // Event listeners para inputs de texto
+            document.querySelectorAll('.text-input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const questionId = e.target.name.replace('q_', '');
+                    answers[questionId] = e.target.value;
+                });
+            });
+        }
+        
+        document.getElementById('responseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const spinner = document.getElementById('submitSpinner');
+            const btn = document.getElementById('submitBtn');
+            
+            try {
+                btn.disabled = true;
+                spinner.style.display = 'inline-block';
+                
+                // Preparar respuestas en el formato esperado
+                const formattedAnswers = Object.entries(answers).map(([questionId, answer]) => {
+                    const question = questions.find(q => q.id === questionId);
+                    
+                    if (question.type === 'TEXT') {
+                        return { question_id: questionId, text: answer };
+                    } else if (question.type === 'MULTIPLE_CHOICE') {
+                        return { question_id: questionId, selected: answer };
+                    } else if (question.type === 'CHECKBOXES') {
+                        return { question_id: questionId, selected: Array.isArray(answer) ? answer : [] };
+                    }
+                }).filter(Boolean);
+                
+                if (formattedAnswers.length === 0) {
+                    alert('Por favor responde al menos una pregunta');
+                    return;
+                }
+                
+                const response = await fetch(`/api/responses/submit/${formSlug}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ answers: formattedAnswers })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Error enviando respuesta');
+                }
+                
+                const result = await response.json();
+                showResult(result);
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+            }
+        });
+        
+        function showResult(result) {
+            document.getElementById('formContent').style.display = 'none';
+            document.getElementById('resultScore').textContent = result.score + ' pts';
+            document.getElementById('resultMessage').textContent = result.interpretation || 'Gracias por completar el formulario';
+            document.getElementById('resultCard').style.display = 'block';
+        }
+        
+        function resetForm() {
+            answers = {};
+            document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('formContent').style.display = 'block';
+            document.getElementById('responseForm').reset();
+            document.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+        }
+        
+        // Cargar formulario al cargar la página
+        loadForm();
+    </script>
+</body>
+</html>

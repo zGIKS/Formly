@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Formulario - Formly{% endblock %}
+
+{% block navbar %}
+<nav class="navbar">
+    <div class="navbar-content">
+        <div class="navbar-brand">Formly Admin</div>
+        <div>
+            <a href="/admin/dashboard" class="btn btn-secondary" style="margin-right: 1rem;">← Volver</a>
+            <button class="btn btn-secondary" onclick="logout()">Cerrar Sesión</button>
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <h1>Editar Formulario</h1>
+        
+        <div class="loading" id="formLoading">
+            <div class="spinner"></div>
+            Cargando formulario...
+        </div>
+        
+        <div id="formContent" style="display: none;">
+            <div class="card">
+                <form id="editFormForm">
+                    <div class="form-group">
+                        <label class="form-label" for="formTitle">Título del Formulario:</label>
+                        <input type="text" id="formTitle" class="form-input" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="formDescription">Descripción:</label>
+                        <textarea id="formDescription" class="form-input form-textarea" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="fontFamily">Tipografía:</label>
+                        <select id="fontFamily" class="form-input">
+                            <option value="Inter">Inter</option>
+                            <option value="Roboto">Roboto</option>
+                            <option value="Open Sans">Open Sans</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="backgroundImage">Imagen de Fondo (URL):</label>
+                        <input type="url" id="backgroundImage" class="form-input">
+                    </div>
+                    
+                    <h3 style="margin: 1.5rem 0;">Rangos de Puntuación</h3>
+                    <div id="scoreRangesContainer">
+                        <!-- Los rangos se cargarán aquí -->
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                        <button type="button" class="btn btn-secondary" onclick="addScoreRange()">+ Agregar Rango</button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                        <a href="/admin/dashboard" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <span class="spinner" id="saveSpinner" style="display: none;"></span>
+                            Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const formSlug = window.location.pathname.split('/')[3];
+let currentForm = null;
+
+async function loadForm() {
+    showLoading(document.getElementById('formLoading'));
+    
+    try {
+        const response = await apiCall('/forms/');
+        const forms = response;
+        currentForm = forms.find(f => f.slug === formSlug);
+        
+        if (!currentForm) {
+            throw new Error('Formulario no encontrado');
+        }
+        
+        populateForm();
+        document.getElementById('formLoading').style.display = 'none';
+        document.getElementById('formContent').style.display = 'block';
+        
+    } catch (error) {
+        showAlert('Error cargando formulario: ' + error.message);
+    }
+}
+
+function populateForm() {
+    document.getElementById('formTitle').value = currentForm.title || '';
+    document.getElementById('formDescription').value = currentForm.description || '';
+    document.getElementById('fontFamily').value = currentForm.font_family || 'Inter';
+    document.getElementById('backgroundImage').value = currentForm.background_image || '';
+    
+    // Cargar rangos de puntuación
+    const container = document.getElementById('scoreRangesContainer');
+    container.innerHTML = '';
+    
+    const ranges = currentForm.score_ranges || [];
+    if (ranges.length === 0) {
+        addScoreRange();
+    } else {
+        ranges.forEach(range => {
+            addScoreRange(range);
+        });
+    }
+}
+
+function addScoreRange(range = null) {
+    const container = document.getElementById('scoreRangesContainer');
+    const rangeDiv = document.createElement('div');
+    rangeDiv.className = 'score-range';
+    rangeDiv.style.cssText = 'border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; position: relative;';
+    
+    rangeDiv.innerHTML = `
+        ${container.children.length > 0 ? '<button type="button" onclick="this.parentElement.remove()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: #e53e3e; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer;">×</button>' : ''}
+        <div class="form-group">
+            <label class="form-label">Mensaje:</label>
+            <input type="text" class="form-input range-message" placeholder="Ej: No sufres bullying" value="${range ? range.message : ''}" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label class="form-label">Puntuación Mínima:</label>
+                <input type="number" class="form-input range-min" min="0" value="${range ? range.min : 0}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Puntuación Máxima:</label>
+                <input type="number" class="form-input range-max" min="0" value="${range ? range.max : 5}" required>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(rangeDiv);
+}
+
+document.getElementById('editFormForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const spinner = document.getElementById('saveSpinner');
+    
+    try {
+        showLoading(spinner);
+        
+        const scoreRanges = Array.from(document.querySelectorAll('.score-range')).map(range => ({
+            message: range.querySelector('.range-message').value,
+            min: parseInt(range.querySelector('.range-min').value),
+            max: parseInt(range.querySelector('.range-max').value)
+        }));
+        
+        const formData = {
+            title: document.getElementById('formTitle').value,
+            description: document.getElementById('formDescription').value,
+            font_family: document.getElementById('fontFamily').value,
+            background_image: document.getElementById('backgroundImage').value || null,
+            score_ranges: scoreRanges
+        };
+        
+        await apiCall(`/forms/${formSlug}`, {
+            method: 'PUT',
+            body: JSON.stringify(formData)
+        });
+        
+        showAlert('Formulario actualizado exitosamente', 'success');
+        setTimeout(() => {
+            window.location.href = '/admin/dashboard';
+        }, 1500);
+        
+    } catch (error) {
+        showAlert(error.message);
+    } finally {
+        hideLoading(spinner);
+    }
+});
+
+function logout() {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/login';
+}
+
+// Check auth and load form
+if (!localStorage.getItem('admin_token')) {
+    window.location.href = '/admin/login';
+} else {
+    loadForm();
+}
+</script>
+{% endblock %}

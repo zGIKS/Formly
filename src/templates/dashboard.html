@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Control - Formly{% endblock %}
+
+{% block navbar %}
+<nav class="navbar">
+    <div class="navbar-content">
+        <div class="navbar-brand">Formly Admin</div>
+        <div>
+            <button class="btn btn-secondary" onclick="logout()">Cerrar Sesión</button>
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h1>Mis Formularios</h1>
+        <button class="btn btn-primary" onclick="showCreateFormModal()">
+            + Crear Formulario
+        </button>
+    </div>
+    
+    <div class="loading" id="formsLoading">
+        <div class="spinner"></div>
+        Cargando formularios...
+    </div>
+    
+    <div id="formsContainer" class="grid grid-2">
+        <!-- Formularios se cargarán aquí -->
+    </div>
+</div>
+
+<!-- Modal para crear formulario -->
+<div id="createFormModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 600px; background: white; border-radius: 12px; padding: 2rem;">
+        <h2 style="margin-bottom: 1.5rem;">Crear Nuevo Formulario</h2>
+        
+        <form id="createFormForm">
+            <div class="form-group">
+                <label class="form-label" for="formTitle">Título del Formulario:</label>
+                <input type="text" id="formTitle" class="form-input" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="formDescription">Descripción:</label>
+                <textarea id="formDescription" class="form-input form-textarea" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="fontFamily">Tipografía:</label>
+                <select id="fontFamily" class="form-input">
+                    <option value="Inter">Inter</option>
+                    <option value="Roboto">Roboto</option>
+                    <option value="Open Sans">Open Sans</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="backgroundImage">Imagen de Fondo (URL):</label>
+                <input type="url" id="backgroundImage" class="form-input">
+            </div>
+            
+            <h3 style="margin: 1.5rem 0;">Rangos de Puntuación</h3>
+            <div id="scoreRangesContainer">
+                <div class="score-range" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Mensaje:</label>
+                        <input type="text" class="form-input range-message" placeholder="Ej: No sufres bullying" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Puntuación Mínima:</label>
+                            <input type="number" class="form-input range-min" min="0" value="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Puntuación Máxima:</label>
+                            <input type="number" class="form-input range-max" min="0" value="5" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button type="button" class="btn btn-secondary" onclick="addScoreRange()">+ Agregar Rango</button>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideCreateFormModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="spinner" id="createFormSpinner" style="display: none;"></span>
+                    Crear Formulario
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let forms = [];
+
+async function loadForms() {
+    showLoading(document.getElementById('formsLoading'));
+    
+    try {
+        const response = await apiCall('/forms/');
+        forms = response;
+        renderForms();
+    } catch (error) {
+        showAlert('Error cargando formularios: ' + error.message);
+    } finally {
+        hideLoading(document.getElementById('formsLoading'));
+    }
+}
+
+function renderForms() {
+    const container = document.getElementById('formsContainer');
+    
+    if (forms.length === 0) {
+        container.innerHTML = `
+            <div class="card" style="text-align: center; padding: 3rem;">
+                <h3 style="color: #a0aec0; margin-bottom: 1rem;">No tienes formularios</h3>
+                <p style="color: #718096;">Crea tu primer formulario para empezar</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = forms.map(form => `
+        <div class="card">
+            <h3 style="margin-bottom: 0.5rem;">${form.title}</h3>
+            <p style="color: #718096; margin-bottom: 1.5rem;">${form.description || 'Sin descripción'}</p>
+            
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="editForm('${form.slug}')" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                    Editar
+                </button>
+                <button class="btn btn-secondary" onclick="viewQuestions('${form.id}')" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                    Preguntas
+                </button>
+                <button class="btn btn-secondary" onclick="copyFormLink('${form.slug}')" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                    Copiar Link
+                </button>
+                <button class="btn btn-danger" onclick="deleteForm('${form.slug}')" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                    Eliminar
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showCreateFormModal() {
+    document.getElementById('createFormModal').style.display = 'block';
+}
+
+function hideCreateFormModal() {
+    document.getElementById('createFormModal').style.display = 'none';
+    document.getElementById('createFormForm').reset();
+}
+
+function addScoreRange() {
+    const container = document.getElementById('scoreRangesContainer');
+    const rangeDiv = document.createElement('div');
+    rangeDiv.className = 'score-range';
+    rangeDiv.style.cssText = 'border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; position: relative;';
+    
+    rangeDiv.innerHTML = `
+        <button type="button" onclick="this.parentElement.remove()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: #e53e3e; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer;">×</button>
+        <div class="form-group">
+            <label class="form-label">Mensaje:</label>
+            <input type="text" class="form-input range-message" placeholder="Ej: Posible bullying" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label class="form-label">Puntuación Mínima:</label>
+                <input type="number" class="form-input range-min" min="0" value="0" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Puntuación Máxima:</label>
+                <input type="number" class="form-input range-max" min="0" value="10" required>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(rangeDiv);
+}
+
+document.getElementById('createFormForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const spinner = document.getElementById('createFormSpinner');
+    
+    try {
+        showLoading(spinner);
+        
+        const scoreRanges = Array.from(document.querySelectorAll('.score-range')).map(range => ({
+            message: range.querySelector('.range-message').value,
+            min: parseInt(range.querySelector('.range-min').value),
+            max: parseInt(range.querySelector('.range-max').value)
+        }));
+        
+        const formData = {
+            title: document.getElementById('formTitle').value,
+            description: document.getElementById('formDescription').value,
+            font_family: document.getElementById('fontFamily').value,
+            background_image: document.getElementById('backgroundImage').value || null,
+            score_ranges: scoreRanges
+        };
+        
+        await apiCall('/forms/', {
+            method: 'POST',
+            body: JSON.stringify(formData)
+        });
+        
+        hideCreateFormModal();
+        loadForms();
+        showAlert('Formulario creado exitosamente', 'success');
+        
+    } catch (error) {
+        showAlert(error.message);
+    } finally {
+        hideLoading(spinner);
+    }
+});
+
+function copyFormLink(slug) {
+    const link = `${window.location.origin}/form/${slug}`;
+    navigator.clipboard.writeText(link);
+    showAlert('Link copiado al portapapeles', 'success');
+}
+
+async function deleteForm(slug) {
+    if (!confirm('¿Estás seguro de que quieres eliminar este formulario?')) return;
+    
+    try {
+        await apiCall(`/forms/${slug}`, { method: 'DELETE' });
+        loadForms();
+        showAlert('Formulario eliminado', 'success');
+    } catch (error) {
+        showAlert('Error eliminando formulario: ' + error.message);
+    }
+}
+
+function editForm(slug) {
+    window.location.href = `/admin/form/${slug}/edit`;
+}
+
+function viewQuestions(formId) {
+    window.location.href = `/admin/form/${formId}/questions`;
+}
+
+function logout() {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/login';
+}
+
+// Check auth and load forms
+if (!localStorage.getItem('admin_token')) {
+    window.location.href = '/admin/login';
+} else {
+    loadForms();
+}
+</script>
+{% endblock %}

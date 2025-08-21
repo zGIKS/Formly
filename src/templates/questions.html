@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Gestionar Preguntas - Formly{% endblock %}
+
+{% block navbar %}
+<nav class="navbar">
+    <div class="navbar-content">
+        <div class="navbar-brand">Formly Admin</div>
+        <div>
+            <a href="/admin/dashboard" class="btn btn-secondary" style="margin-right: 1rem;">← Volver</a>
+            <button class="btn btn-secondary" onclick="logout()">Cerrar Sesión</button>
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h1 id="formTitle">Preguntas del Formulario</h1>
+            <p id="formDescription" style="color: #718096;"></p>
+        </div>
+        <button class="btn btn-primary" onclick="showCreateQuestionModal()">
+            + Agregar Pregunta
+        </button>
+    </div>
+    
+    <div class="loading" id="questionsLoading">
+        <div class="spinner"></div>
+        Cargando preguntas...
+    </div>
+    
+    <div id="questionsContainer">
+        <!-- Preguntas se cargarán aquí -->
+    </div>
+</div>
+
+<!-- Modal para crear/editar pregunta -->
+<div id="questionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="position: absolute; top: 2rem; left: 50%; transform: translateX(-50%); width: 90%; max-width: 800px; background: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem;">
+        <h2 id="modalTitle">Crear Nueva Pregunta</h2>
+        
+        <form id="questionForm">
+            <div class="form-group">
+                <label class="form-label" for="questionText">Texto de la Pregunta:</label>
+                <textarea id="questionText" class="form-input form-textarea" rows="3" required></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="questionType">Tipo de Pregunta:</label>
+                <select id="questionType" class="form-input" required>
+                    <option value="">Seleccionar tipo</option>
+                    <option value="MULTIPLE_CHOICE">Opción Múltiple</option>
+                    <option value="CHECKBOXES">Casillas de Verificación</option>
+                    <option value="TEXT">Texto Libre</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="questionImage">Imagen de la Pregunta (URL):</label>
+                <input type="url" id="questionImage" class="form-input">
+            </div>
+            
+            <div id="optionsContainer" style="display: none;">
+                <h3 style="margin: 1.5rem 0;">Opciones de Respuesta</h3>
+                <div id="optionsList">
+                    <!-- Opciones se agregarán aquí -->
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addOption()" style="margin-top: 1rem;">
+                    + Agregar Opción
+                </button>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideQuestionModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="spinner" id="questionSpinner" style="display: none;"></span>
+                    <span id="submitText">Crear Pregunta</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const formId = window.location.pathname.split('/')[3];
+let questions = [];
+let currentForm = null;
+let editingQuestionId = null;
+
+async function loadFormAndQuestions() {
+    showLoading(document.getElementById('questionsLoading'));
+    
+    try {
+        // Cargar información del formulario
+        const formResponse = await apiCall(`/forms/`);
+        const forms = formResponse;
+        currentForm = forms.find(f => f.id === formId);
+        
+        if (currentForm) {
+            document.getElementById('formTitle').textContent = `Preguntas: ${currentForm.title}`;
+            document.getElementById('formDescription').textContent = currentForm.description || '';
+            document.title = `Preguntas - ${currentForm.title}`;
+        }
+        
+        // Cargar preguntas
+        const questionsResponse = await fetch(`/api/questions/by_form/${formId}`);
+        questions = await questionsResponse.json();
+        renderQuestions();
+        
+    } catch (error) {
+        showAlert('Error cargando datos: ' + error.message);
+    } finally {
+        hideLoading(document.getElementById('questionsLoading'));
+    }
+}
+
+function renderQuestions() {
+    const container = document.getElementById('questionsContainer');
+    
+    if (questions.length === 0) {
+        container.innerHTML = `
+            <div class="card" style="text-align: center; padding: 3rem;">
+                <h3 style="color: #a0aec0; margin-bottom: 1rem;">No hay preguntas</h3>
+                <p style="color: #718096;">Agrega preguntas para que los usuarios puedan responder</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = questions.map((question, index) => `
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 1rem;">
+                <div style="flex: 1;">
+                    <h3 style="margin-bottom: 0.5rem;">Pregunta ${index + 1}</h3>
+                    <span class="badge" style="background: #e2e8f0; color: #4a5568; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem;">
+                        ${getTypeLabel(question.type)}
+                    </span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="editQuestion('${question.id}')" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                        Editar
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteQuestion('${question.id}')" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+            
+            ${question.image ? `<img src="${question.image}" alt="Question image" style="max-width: 200px; border-radius: 8px; margin-bottom: 1rem;">` : ''}
+            
+            <p style="color: #2d3748; margin-bottom: 1rem; font-weight: 500;">${question.text}</p>
+            
+            ${question.type !== 'TEXT' ? `
+                <div style="margin-left: 1rem;">
+                    ${question.options?.map(option => `
+                        <div style="display: flex; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: #f7fafc; border-radius: 6px;">
+                            ${option.image ? `<img src="${option.image}" alt="Option image" style="width: 40px; height: 40px; border-radius: 4px; margin-right: 0.5rem; object-fit: cover;">` : ''}
+                            <span style="flex: 1;">${option.text}</span>
+                            <span style="color: #4a5568; font-size: 0.875rem;">${option.score} pts</span>
+                        </div>
+                    `).join('') || ''}
+                </div>
+            ` : '<p style="color: #718096; font-style: italic;">Respuesta de texto libre</p>'}
+        </div>
+    `).join('');
+}
+
+function getTypeLabel(type) {
+    switch (type) {
+        case 'MULTIPLE_CHOICE': return 'Opción Múltiple';
+        case 'CHECKBOXES': return 'Casillas';
+        case 'TEXT': return 'Texto Libre';
+        default: return type;
+    }
+}
+
+function showCreateQuestionModal() {
+    editingQuestionId = null;
+    document.getElementById('modalTitle').textContent = 'Crear Nueva Pregunta';
+    document.getElementById('submitText').textContent = 'Crear Pregunta';
+    document.getElementById('questionForm').reset();
+    document.getElementById('optionsContainer').style.display = 'none';
+    document.getElementById('optionsList').innerHTML = '';
+    document.getElementById('questionModal').style.display = 'block';
+}
+
+function hideQuestionModal() {
+    document.getElementById('questionModal').style.display = 'none';
+}
+
+document.getElementById('questionType').addEventListener('change', function() {
+    const optionsContainer = document.getElementById('optionsContainer');
+    const optionsList = document.getElementById('optionsList');
+    
+    if (this.value === 'MULTIPLE_CHOICE' || this.value === 'CHECKBOXES') {
+        optionsContainer.style.display = 'block';
+        if (optionsList.children.length === 0) {
+            addOption();
+            addOption();
+        }
+    } else {
+        optionsContainer.style.display = 'none';
+        optionsList.innerHTML = '';
+    }
+});
+
+function addOption() {
+    const optionsList = document.getElementById('optionsList');
+    const optionId = 'opt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'option-item';
+    optionDiv.style.cssText = 'border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; position: relative;';
+    
+    optionDiv.innerHTML = `
+        <button type="button" onclick="this.parentElement.remove()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: #e53e3e; color: white; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer;">×</button>
+        
+        <div class="form-group">
+            <label class="form-label">Texto de la Opción:</label>
+            <input type="text" class="form-input option-text" data-option-id="${optionId}" required>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Imagen de la Opción (URL):</label>
+            <input type="url" class="form-input option-image" data-option-id="${optionId}">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Puntuación:</label>
+            <input type="number" class="form-input option-score" data-option-id="${optionId}" value="0" min="0">
+        </div>
+    `;
+    
+    optionsList.appendChild(optionDiv);
+}
+
+document.getElementById('questionForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const spinner = document.getElementById('questionSpinner');
+    
+    try {
+        showLoading(spinner);
+        
+        const questionType = document.getElementById('questionType').value;
+        let options = [];
+        
+        if (questionType === 'MULTIPLE_CHOICE' || questionType === 'CHECKBOXES') {
+            const optionItems = document.querySelectorAll('.option-item');
+            options = Array.from(optionItems).map(item => {
+                const optionId = item.querySelector('.option-text').dataset.optionId;
+                return {
+                    id: optionId,
+                    text: item.querySelector('.option-text').value,
+                    image: item.querySelector('.option-image').value || null,
+                    score: parseInt(item.querySelector('.option-score').value) || 0
+                };
+            });
+        }
+        
+        const questionData = {
+            form_id: formId,
+            text: document.getElementById('questionText').value,
+            type: questionType,
+            image: document.getElementById('questionImage').value || null,
+            options: options
+        };
+        
+        if (editingQuestionId) {
+            await apiCall(`/questions/${editingQuestionId}`, {
+                method: 'PUT',
+                body: JSON.stringify(questionData)
+            });
+        } else {
+            await apiCall('/questions/', {
+                method: 'POST',
+                body: JSON.stringify(questionData)
+            });
+        }
+        
+        hideQuestionModal();
+        loadFormAndQuestions();
+        showAlert('Pregunta guardada exitosamente', 'success');
+        
+    } catch (error) {
+        showAlert(error.message);
+    } finally {
+        hideLoading(spinner);
+    }
+});
+
+async function deleteQuestion(questionId) {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) return;
+    
+    try {
+        await apiCall(`/questions/${questionId}`, { method: 'DELETE' });
+        loadFormAndQuestions();
+        showAlert('Pregunta eliminada', 'success');
+    } catch (error) {
+        showAlert('Error eliminando pregunta: ' + error.message);
+    }
+}
+
+function editQuestion(questionId) {
+    const question = questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    editingQuestionId = questionId;
+    document.getElementById('modalTitle').textContent = 'Editar Pregunta';
+    document.getElementById('submitText').textContent = 'Actualizar Pregunta';
+    
+    // Poblar el formulario con los datos existentes
+    document.getElementById('questionText').value = question.text;
+    document.getElementById('questionType').value = question.type;
+    document.getElementById('questionImage').value = question.image || '';
+    
+    // Mostrar opciones si es necesario
+    const optionsContainer = document.getElementById('optionsContainer');
+    const optionsList = document.getElementById('optionsList');
+    optionsList.innerHTML = '';
+    
+    if (question.type === 'MULTIPLE_CHOICE' || question.type === 'CHECKBOXES') {
+        optionsContainer.style.display = 'block';
+        
+        if (question.options && question.options.length > 0) {
+            question.options.forEach(option => {
+                addOption();
+                const lastOption = optionsList.lastElementChild;
+                lastOption.querySelector('.option-text').value = option.text;
+                lastOption.querySelector('.option-image').value = option.image || '';
+                lastOption.querySelector('.option-score').value = option.score || 0;
+            });
+        } else {
+            addOption();
+            addOption();
+        }
+    } else {
+        optionsContainer.style.display = 'none';
+    }
+    
+    document.getElementById('questionModal').style.display = 'block';
+}
+
+function logout() {
+    localStorage.removeItem('admin_token');
+    window.location.href = '/admin/login';
+}
+
+// Check auth and load data
+if (!localStorage.getItem('admin_token')) {
+    window.location.href = '/admin/login';
+} else {
+    loadFormAndQuestions();
+}
+</script>
+{% endblock %}
